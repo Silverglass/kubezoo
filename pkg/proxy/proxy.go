@@ -274,7 +274,7 @@ func (tp *tenantProxy) ConvertToTable(ctx context.Context, object runtime.Object
 // to true.
 func (tp *tenantProxy) Update(ctx context.Context, name string, objInfo rest.UpdatedObjectInfo,
 	_ rest.ValidateObjectFunc, _ rest.ValidateObjectUpdateFunc,
-	_ bool, options *metav1.UpdateOptions) (runtime.Object, bool, error) {
+	forceAllowCreate bool, options *metav1.UpdateOptions) (runtime.Object, bool, error) {
 	if tp.newFunc == nil {
 		return nil, false, fmt.Errorf("newFunc is nil")
 	}
@@ -287,7 +287,15 @@ func (tp *tenantProxy) Update(ctx context.Context, name string, objInfo rest.Upd
 		return tp.guaranteedUpdate(ctx, name, objInfo, options)
 	}
 
-	obj, err := objInfo.UpdatedObject(ctx, nil)
+	original, err := tp.Get(ctx, name, &metav1.GetOptions{})
+	if err != nil && !errors.IsNotFound(err) {
+		return nil, false, err
+	}
+	if errors.IsNotFound(err) && !forceAllowCreate {
+		return nil, false, err
+	}
+
+	obj, err := objInfo.UpdatedObject(ctx, original)
 	if err != nil {
 		return nil, false, err
 	}
