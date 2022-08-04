@@ -73,6 +73,8 @@ type tenantProxy struct {
 
 	// dynamic client is used to communicate with upstream cluster
 	dynamicClient dynamic.Interface
+
+	groupVersionKindFunc common.GroupVersionKindFunc
 }
 
 // tenantProxyWithLister is a wrapper of tenantProxy, it exposes Lister interface to enable installation of List method
@@ -115,17 +117,18 @@ func NewTenantProxy(config common.StorageConfig) (rest.Storage, error) {
 	}
 
 	proxy := &tenantProxy{
-		kind:             config.Kind,
-		namespaceScoped:  config.NamespaceScoped,
-		isCustomResource: config.IsCustomResource,
-		resource:         config.Resource,
-		subresource:      config.Subresource,
-		shortNames:       config.ShortNames,
-		newFunc:          config.NewFunc,
-		newListFunc:      config.NewListFunc,
-		dynamicClient:    config.DynamicClient,
-		convertor:        config.Convertor,
-		tableConvertor:   tc,
+		kind:                 config.Kind,
+		namespaceScoped:      config.NamespaceScoped,
+		isCustomResource:     config.IsCustomResource,
+		resource:             config.Resource,
+		subresource:          config.Subresource,
+		shortNames:           config.ShortNames,
+		newFunc:              config.NewFunc,
+		newListFunc:          config.NewListFunc,
+		dynamicClient:        config.DynamicClient,
+		convertor:            config.Convertor,
+		groupVersionKindFunc: config.GroupVersionKindFunc,
+		tableConvertor:       tc,
 	}
 	if config.NewListFunc == nil {
 		return proxy, nil
@@ -136,6 +139,13 @@ func NewTenantProxy(config common.StorageConfig) (rest.Storage, error) {
 // isCustomResourceDefinition checks whether the kind is a CRD or not.
 func isCustomResourceDefinition(kind schema.GroupVersionKind) bool {
 	return kind.GroupKind() == apiextensionsv1.Kind("CustomResourceDefinition")
+}
+
+func (tp *tenantProxy) GroupVersionKind(containingGV schema.GroupVersion) schema.GroupVersionKind {
+	if tp.groupVersionKindFunc == nil {
+		return tp.kind
+	}
+	return tp.groupVersionKindFunc(containingGV)
 }
 
 // getClient returns a dynamic client.
@@ -168,7 +178,8 @@ func (tp *tenantProxy) convertUnstructuredToOutput(utd *unstructured.Unstructure
 		return nil
 	}
 
-	original, err := nativeScheme.New(tp.kind)
+	kind := tp.GroupVersionKind(tp.kind.GroupVersion())
+	original, err := nativeScheme.New(kind)
 	if err != nil {
 		return err
 	}
@@ -356,7 +367,8 @@ func (tp *tenantProxy) update(ctx context.Context, obj runtime.Object, options *
 }
 
 func (tp *tenantProxy) convertInternalObjectToVersionedObject(obj runtime.Object) (runtime.Object, error) {
-	return runtime.UnsafeObjectConvertor(nativeScheme).ConvertToVersion(obj, tp.kind.GroupVersion())
+	kind := tp.GroupVersionKind(tp.kind.GroupVersion())
+	return runtime.UnsafeObjectConvertor(nativeScheme).ConvertToVersion(obj, kind.GroupVersion())
 }
 
 func (tp *tenantProxy) convertInternalObjectToUnstructuredObject(obj runtime.Object) (*unstructured.Unstructured, error) {

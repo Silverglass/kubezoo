@@ -4,6 +4,8 @@ import (
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	admissionregistrationv1beta1 "k8s.io/api/admissionregistration/v1beta1"
 	appsapiv1 "k8s.io/api/apps/v1"
+	appsv1beta1 "k8s.io/api/apps/v1beta1"
+	appsv1beta2 "k8s.io/api/apps/v1beta2"
 	authenticationv1 "k8s.io/api/authentication/v1"
 	authenticationv1beta1 "k8s.io/api/authentication/v1beta1"
 	authorizationv1 "k8s.io/api/authorization/v1"
@@ -29,6 +31,7 @@ import (
 	rbacv1alpha1 "k8s.io/api/rbac/v1alpha1"
 	rbacv1beta1 "k8s.io/api/rbac/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/kubernetes/pkg/apis/admissionregistration"
 	"k8s.io/kubernetes/pkg/apis/apps"
 	"k8s.io/kubernetes/pkg/apis/authentication"
@@ -201,8 +204,9 @@ var legacyGroup = common.APIGroupConfig{
 				ShortNames:      []string{"rc"},
 				NamespaceScoped: true,
 				NewFunc: func() runtime.Object {
-					return &core.ReplicationController{}
+					return &autoscaling.Scale{}
 				},
+				GroupVersionKindFunc: groupVersionKindForScale,
 			},
 
 			"services": {
@@ -512,11 +516,12 @@ var nonLegacyGroups = []common.APIGroupConfig{
 					NewFunc:         func() runtime.Object { return &apps.Deployment{} },
 				},
 				"deployments/scale": {
-					Kind:            appsapiv1.SchemeGroupVersion.WithKind("Deployment"),
-					Resource:        "deployments",
-					Subresource:     "scale",
-					NamespaceScoped: true,
-					NewFunc:         func() runtime.Object { return &apps.Deployment{} },
+					Kind:                 appsapiv1.SchemeGroupVersion.WithKind("Deployment"),
+					Resource:             "deployments",
+					Subresource:          "scale",
+					NamespaceScoped:      true,
+					NewFunc:              func() runtime.Object { return &autoscaling.Scale{} },
+					GroupVersionKindFunc: groupVersionKindForScale,
 				},
 
 				// statefulsets
@@ -536,11 +541,12 @@ var nonLegacyGroups = []common.APIGroupConfig{
 					NewFunc:         func() runtime.Object { return &apps.StatefulSet{} },
 				},
 				"statefulsets/scale": {
-					Kind:            appsapiv1.SchemeGroupVersion.WithKind("StatefulSet"),
-					Resource:        "statefulsets",
-					Subresource:     "scale",
-					NamespaceScoped: true,
-					NewFunc:         func() runtime.Object { return &apps.StatefulSet{} },
+					Kind:                 appsapiv1.SchemeGroupVersion.WithKind("StatefulSet"),
+					Resource:             "statefulsets",
+					Subresource:          "scale",
+					NamespaceScoped:      true,
+					NewFunc:              func() runtime.Object { return &autoscaling.Scale{} },
+					GroupVersionKindFunc: groupVersionKindForScale,
 				},
 
 				// daemonsets
@@ -578,11 +584,12 @@ var nonLegacyGroups = []common.APIGroupConfig{
 					NewFunc:         func() runtime.Object { return &apps.ReplicaSet{} },
 				},
 				"replicasets/scale": {
-					Kind:            appsapiv1.SchemeGroupVersion.WithKind("ReplicaSet"),
-					Resource:        "replicasets",
-					Subresource:     "scale",
-					NamespaceScoped: true,
-					NewFunc:         func() runtime.Object { return &apps.ReplicaSet{} },
+					Kind:                 appsapiv1.SchemeGroupVersion.WithKind("ReplicaSet"),
+					Resource:             "replicasets",
+					Subresource:          "scale",
+					NamespaceScoped:      true,
+					NewFunc:              func() runtime.Object { return &autoscaling.Scale{} },
+					GroupVersionKindFunc: groupVersionKindForScale,
 				},
 
 				// controllerrevisions
@@ -1117,4 +1124,17 @@ var nonLegacyGroups = []common.APIGroupConfig{
 
 	// group: node.k8s.io
 	// kinds: RuntimeClass
+}
+
+func groupVersionKindForScale(containingGV schema.GroupVersion) schema.GroupVersionKind {
+	switch containingGV {
+	case extensionsv1beta1.SchemeGroupVersion:
+		return extensionsv1beta1.SchemeGroupVersion.WithKind("Scale")
+	case appsv1beta1.SchemeGroupVersion:
+		return appsv1beta1.SchemeGroupVersion.WithKind("Scale")
+	case appsv1beta2.SchemeGroupVersion:
+		return appsv1beta2.SchemeGroupVersion.WithKind("Scale")
+	default:
+		return autoscalingv1.SchemeGroupVersion.WithKind("Scale")
+	}
 }
